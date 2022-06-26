@@ -43,7 +43,7 @@ typedef struct simcom_t
 	int rx_io_num;
 	int baud_rate;
 	bool AT_buff_avai;
-	char AT_buff[BUF_SIZE];
+	uint8_t AT_buff[BUF_SIZE];
 	void (*mqtt_CB)();
 }simcom;
 typedef struct client_t
@@ -78,8 +78,8 @@ void mqttDisconnect(client clientMqtt, int retry);
 bool mqttPublish(client clientMqtt, char* data, char* topic, int qos, int retry);
 bool mqttSubcribe(client clientMqtt, char* topic, int qos, int retry, void (*mqttSubcribeCB)());
 bool sendSMS(char *phone, char *text);
-
-
+bool httpGet(char * url, uint32_t* len);
+bool httpReadRespond(uint8_t* data, int len_expect, uint16_t *len_real);
 
 
 #endif /* SIMCOM7600_SIMCOM7600_H_ */

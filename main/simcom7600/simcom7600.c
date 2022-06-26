@@ -37,17 +37,16 @@ void init_simcom(uart_port_t uart_num, int tx_io_num, int rx_io_num, int baud_ra
 	ESP_ERROR_CHECK(uart_set_pin(uart_num, tx_io_num, rx_io_num, ECHO_TEST_RTS, ECHO_TEST_CTS));
 	xTaskCreate(uart_simcom, "uart_echo_task1", 4096, NULL, 10, NULL);
 }
-
 void uart_simcom(void *arg)
 {
-	char data[BUF_SIZE];
+	uint8_t data[BUF_SIZE];
 	while (1) {
 		int len = uart_read_bytes(simcom_7600.uart_num, data, (BUF_SIZE - 1), 100 / portTICK_PERIOD_MS);
 		// Write data back to the UART
 		if (len) {
 			data[len] = '\0';
-			ESP_LOGI(TAG, "Rec: %s", data);
-			if(strstr(data, "+CMQTTRXSTART"))
+			ESP_LOGI(TAG, "Rec: %s", (char*) data);
+			if(strstr((char*)data, "+CMQTTRXSTART"))
 			{
 				simcom_7600.mqtt_CB(data);
 			}
@@ -77,8 +76,8 @@ AT_res ___readSerial(uint32_t timeout, char* expect)
 		vTaskDelay(10/portTICK_PERIOD_MS);
 		if(simcom_7600.AT_buff_avai)
 		{
-			if(strstr(simcom_7600.AT_buff, "ERROR")) return AT_ERROR;
-			else if(strstr(simcom_7600.AT_buff, expect)) return AT_OK;
+			if(strstr((char*)simcom_7600.AT_buff, "ERROR")) return AT_ERROR;
+			else if(strstr((char*)simcom_7600.AT_buff, expect)) return AT_OK;
 		}
 	}
 	return AT_TIMEOUT;
@@ -93,7 +92,6 @@ bool _readSerial(uint32_t timeout)
 	if(simcom_7600.AT_buff_avai == false) return false;
 	else return true;
 }
-
 bool isInit(int retry)
 {
 	AT_res res;
@@ -137,14 +135,13 @@ bool readGPS(gps *gps)
 	if(_readSerial(5000) == false) return false;
 	else
 	{
-		gps_buff = strtok(simcom_7600.AT_buff, " ");
+		gps_buff = strtok((char*)simcom_7600.AT_buff, " ");
 		gps_buff = strtok(NULL, "");
 		gps_buff = strtok(gps_buff, "\r\n");
 		getGPS(gps_buff, gps);
 		return true;
 	}
 }
-
 bool powerOff(int retry)
 {
 	AT_res res;
@@ -164,7 +161,7 @@ bool isRegistered(int retry)
 		vTaskDelay(1000/portTICK_PERIOD_MS);
 		_sendAT("AT+CREG?");
 		if(_readSerial(1000) == false) continue;
-		if(strstr(simcom_7600.AT_buff, "0,1") || strstr(simcom_7600.AT_buff, "0,5") || strstr(simcom_7600.AT_buff, "1,1") || strstr(simcom_7600.AT_buff, "1,5")) return true;
+		if(strstr((char*)simcom_7600.AT_buff, "0,1") || strstr((char*)simcom_7600.AT_buff, "0,5") || strstr((char*)simcom_7600.AT_buff, "1,1") || strstr((char*)simcom_7600.AT_buff, "1,5")) return true;
 		else continue;
 	}
 	return false;
@@ -216,7 +213,6 @@ bool mqttConnect(client clientMqtt, int retry)
 	}
 	return false;
 }
-
 bool _inputPub(client clientMqtt, char* topic, int retry)
 {
 	AT_res res;
@@ -419,7 +415,7 @@ bool networkInfor(int retry, Network_Signal* network)
 		res = ___readSerial(1000, "OK");
 		if (res == AT_OK)
 		{
-			CPSI_Decode(simcom_7600.AT_buff, network);
+			CPSI_Decode((char*)simcom_7600.AT_buff, network);
 			return true;
 		}
 		else if (res == AT_ERROR) return false;
@@ -434,7 +430,6 @@ void powerOff_(gpio_num_t powerKey)
 	vTaskDelay(5000/portTICK_PERIOD_MS);
 	gpio_set_level(powerKey, 1);
 }
-
 bool powerOn(gpio_num_t powerKey)
 {
 	AT_res res;
@@ -446,4 +441,77 @@ bool powerOn(gpio_num_t powerKey)
 	res = waitModuleReady(16000);
 	if (res) return true;
 	else return false;
+}
+bool httpGet(char * url, uint32_t* len)
+{
+	AT_res res;
+	int retry = 2;
+	char buff_send[100];
+	sprintf(buff_send, "AT+HTTPPARA=\"URL\",\"%s\"", url);
+	while(retry--)
+	{
+		_sendAT("AT+HTTPINIT");
+		res = ___readSerial(1000, "OK");
+		if (res == AT_OK) break;
+		else if (res == AT_ERROR) return false;
+	}
+	retry = 2;
+	while (retry--)
+	{
+		_sendAT(buff_send);
+		res = ___readSerial(1000, "OK");
+		if (res == AT_OK) break;
+		else if (res == AT_ERROR) return false;
+	}
+	retry = 2;
+	while(retry--)
+	{
+		_sendAT("AT+HTTPACTION=0");
+		res = ___readSerial(1000, "+HTTPACTION: 0,200");
+		if (res == AT_OK)
+		{
+			sscanf((char*)simcom_7600.AT_buff, "\r\nOK\r\n\r\n+HTTPACTION: 0,200,%d\r\n", len);
+			return true;
+		}
+		else if (res == AT_ERROR) return false;
+	}
+	return false;
+}
+
+bool httpReadRespond(uint8_t* data, int len_expect, uint16_t *len_real)
+{
+	AT_res res;
+	int retry = 2;
+	char buff_send[30];
+	sprintf(buff_send, "AT+HTTPREAD=%d", len_expect);
+	while (retry--)
+	{
+		_sendAT(buff_send);
+		res = ___readSerial(1000, "OK");
+		if (res == AT_OK)
+		{
+			int read_len;
+			sscanf((char*)simcom_7600.AT_buff, "\r\nOK\r\n\r\n+HTTPREAD: DATA,%d", &read_len);
+			*len_real = read_len;
+			uint8_t buff_temp[read_len+strlen("\r\n+HTTPREAD:0\r\n")];
+			int index_CRLF = 0;
+			for(int i = 0; i < BUF_SIZE; i++)
+			{
+				if(*(simcom_7600.AT_buff+i-1) == '\n' && *(simcom_7600.AT_buff+i-2) == '\r')
+				{
+					index_CRLF++;
+				}
+				if(index_CRLF == 4)
+				{
+					memcpy(buff_temp, simcom_7600.AT_buff+i, read_len+strlen("\r\n+HTTPREAD:0\r\n"));
+					break;
+				}
+			}
+//			buff_temp[strlen(buff_temp) - strlen("\r\n+HTTPREAD:0\r\n")] = '\0';
+			memcpy(data, buff_temp, read_len);
+			return true;
+		}
+		else if (res == AT_ERROR) return false;
+	}
+	return false;
 }

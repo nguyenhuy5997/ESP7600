@@ -88,9 +88,9 @@ bool CPSI_Decode(char* str, Network_Signal *Device_Singnal)
 		sscanf(temp_buf, "%d,%d,%[^,],%d,%d", &Device_Singnal->MCC, &Device_Singnal->MNC, _LAC, &Device_Singnal->cell_ID, &Device_Singnal->RSSI);
 		Device_Singnal->LAC = (int)strtol(_LAC, NULL, 0);
 		filter_comma(str, 11, 12, RSRQ_Buf);
-		Device_Singnal->RSRQ = atoi(RSRQ_Buf);
+		Device_Singnal->RSRQ = atoi(RSRQ_Buf)/10;
 		filter_comma(str, 12, 13, RSRP_Buf);
-		Device_Singnal->RSRP = atoi(RSRP_Buf);
+		Device_Singnal->RSRP = atoi(RSRP_Buf)/10;
 		Device_Singnal->Network_type = LTE;
 		if(Device_Singnal->MCC && Device_Singnal->MNC && Device_Singnal->cell_ID && Device_Singnal->RSSI && Device_Singnal->LAC && Device_Singnal->RSRQ && Device_Singnal->RSRP)
 		{
