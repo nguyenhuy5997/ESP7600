@@ -467,10 +467,12 @@ bool httpGet(char * url, uint32_t* len)
 	while(retry--)
 	{
 		_sendAT("AT+HTTPACTION=0");
-		res = ___readSerial(1000, "+HTTPACTION: 0,200");
+		res = ___readSerial(5000, "+HTTPACTION: 0,200");
 		if (res == AT_OK)
 		{
-			sscanf((char*)simcom_7600.AT_buff, "\r\nOK\r\n\r\n+HTTPACTION: 0,200,%d\r\n", len);
+			sscanf((char*)simcom_7600.AT_buff, "\r\n+HTTPACTION: 0,200,%d\r\n\r\nOK\r\n", len);
+			printf("content_lengt: %d\r\n", *len);
+			sscanf((char*)simcom_7600.AT_buff, "\r\nOK\r\n\r\n+HTTPACTION: 0,200,%d\r\n\r\nOK\r\n", len);
 			return true;
 		}
 		else if (res == AT_ERROR) return false;
@@ -512,6 +514,43 @@ bool httpReadRespond(uint8_t* data, int len_expect, uint16_t *len_real)
 			return true;
 		}
 		else if (res == AT_ERROR) return false;
+	}
+	return false;
+}
+bool checkPDPstate(int *PDP_state)
+{
+	AT_res res;
+	int retry = 2;
+	char sub_buf[20];
+	while (retry--)
+	{
+		_sendAT("AT+CNETSTART?");
+		res = ___readSerial(1000, "OK");
+		if (res == AT_OK)
+		{
+
+			return true;
+		}
+		else if (res == AT_ERROR) return false;
+	}
+	return false;
+}
+bool openNetwork()
+{
+	AT_res res;
+	int retry = 2;
+	while (retry--)
+	{
+		_sendAT("AT+CNETSTART");
+		res = ___readSerial(1000, "OK");
+		if (res == AT_OK)
+		{
+			if (strstr((char*)simcom_7600.AT_buff, "+CNETSTART: 0"))
+			{
+				return true;
+			}
+			else return false;
+		}
 	}
 	return false;
 }

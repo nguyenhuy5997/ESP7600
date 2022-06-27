@@ -21,23 +21,19 @@
 #include "esp_wifi.h"
 #include "cJSON.h"
 #include "../main/simcom7600/simcom7600.h"
+#include "../main/simcom7600/7600_config.h"
 #include "../main/common.h"
 #include "../main/string_user/location_parser.h"
 #include "../main/json_user/json_user.h"
 #include "../main/wifi_cell/wifi_cell.h"
 #include "../main/OTA_LTE/FOTA_LTE.h"
-#define POWER_KEY (2)
-#define GPIO_OUTPUT_PIN_SEL (1ULL << POWER_KEY)
+
 #define TAG_MAIN "SIMCOM"
+
 #define CLIENT_ID "MAN02ND00074"
 #define MQTT_BROKER "tcp://vttmqtt.innoway.vn:1883"
 #define CLIENT_PW "NULL"
 #define VERSION "0.0.1"
-
-#define ECHO_TEST_TXD_1 (17)
-#define ECHO_TEST_RXD_1 (16)
-#define ECHO_UART_PORT_NUM_1    (2)
-#define ECHO_UART_BAUD_RATE     (115200)
 
 char wifi_buffer[400];
 client mqttClient7600 = {};
@@ -115,7 +111,7 @@ static void main_proc(void *arg)
 			goto POWER_ON;
 		}
 MQTT:
-		res = networkType(BOTH, 3);
+		res = networkType(GSM, 3);
 		if(res) ESP_LOGW(TAG, "Select network OK");
 		else
 		{
@@ -150,36 +146,34 @@ MQTT:
 			if(!isInit(3)) goto MQTT;
 			ESP_LOGE(TAG, "MQTT Sucribe FALSE");
 		}
-		update_handler();
+//		update_handler();
 		while(1)
 		{
-			printf("@@@@@\r\n");
-
-//			memset(&gps_7600, 0, sizeof(gps_7600));
-//			readGPS(&gps_7600);
-//			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
-//			{
-//				networkInfor(5, &network7600);
-//				MQTT_Location_Payload_Convert(pub_mqtt, gps_7600, network7600,  deviceInfor);
-//				res = mqttPublish(mqttClient7600, pub_mqtt, "messages/MAN02ND00073/gps", 1, 1);
-//			}
-//			else
-//			{
-//				networkInfor(5, &network7600);
-//				wifi_scan(wifi_buffer);
-//				MQTT_WiFi_Payload_Convert(pub_mqtt, wifi_buffer, network7600, deviceInfor);
-//				res = mqttPublish(mqttClient7600, pub_mqtt, "messages/MAN02ND00073/wificell", 1, 1);
-//				memset(wifi_buffer, 0, sizeof(wifi_buffer));
-//			}
-//			if(res)
-//			{
-//				ESP_LOGW(TAG, "Publish OK");
-//			}
-//			else
-//			{
-//				ESP_LOGE(TAG, "Publish FALSE");
-//				goto MQTT;
-//			}
+			memset(&gps_7600, 0, sizeof(gps_7600));
+			readGPS(&gps_7600);
+			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
+			{
+				networkInfor(5, &network7600);
+				MQTT_Location_Payload_Convert(pub_mqtt, gps_7600, network7600,  deviceInfor);
+				res = mqttPublish(mqttClient7600, pub_mqtt, "messages/MAN02ND00073/gps", 1, 1);
+			}
+			else
+			{
+				networkInfor(5, &network7600);
+				wifi_scan(wifi_buffer);
+				MQTT_WiFi_Payload_Convert(pub_mqtt, wifi_buffer, network7600, deviceInfor);
+				res = mqttPublish(mqttClient7600, pub_mqtt, "messages/MAN02ND00073/wificell", 1, 1);
+				memset(wifi_buffer, 0, sizeof(wifi_buffer));
+			}
+			if(res)
+			{
+				ESP_LOGW(TAG, "Publish OK");
+			}
+			else
+			{
+				ESP_LOGE(TAG, "Publish FALSE");
+				goto MQTT;
+			}
 			vTaskDelay(1000/portTICK_PERIOD_MS);
 		 }
 	}
@@ -187,8 +181,8 @@ MQTT:
 
 void app_main(void)
 {
-	printf("helloooooooooooooooo your fota is so pro\r\n");
 	esp_log_level_set("wifi", ESP_LOG_NONE);
+	esp_log_level_set("wifi_init", ESP_LOG_NONE);
 	nvs_flash_init();
 	esp_netif_init();
 	esp_event_loop_create_default();

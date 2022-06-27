@@ -15,6 +15,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include <common.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
@@ -54,12 +55,19 @@ typedef struct client_t
 	int	index;
 	int sv_type;
 }client;
+typedef struct LBS_t
+{
+	long lat;
+	long lon;
+	bool fix_status;
+}LBS;
 typedef enum
 {
 	AT_OK,
 	AT_ERROR,
 	AT_TIMEOUT,
 }AT_res;
+
 
 void init_simcom(uart_port_t uart_num, int tx_io_num, int rx_io_num, int baud_rate);
 bool isInit(int retry);
@@ -80,6 +88,7 @@ bool mqttSubcribe(client clientMqtt, char* topic, int qos, int retry, void (*mqt
 bool sendSMS(char *phone, char *text);
 bool httpGet(char * url, uint32_t* len);
 bool httpReadRespond(uint8_t* data, int len_expect, uint16_t *len_real);
-
+bool checkPDPstate(int *PDP_state);
+bool getLBS(LBS *LBS_infor);
 
 #endif /* SIMCOM7600_SIMCOM7600_H_ */

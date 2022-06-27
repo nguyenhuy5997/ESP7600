@@ -8,5 +8,6 @@ idf_component_register(SRCS "main.c"
 							"../main/json_user/json_user.c"
 							"../main/wifi_cell/wifi_cell.c"
 							"../main/OTA_LTE/FOTA_LTE.c"
+							"../main/string_user/string_parse.c"
 							INCLUDE_DIRS ".")
 set(COMPONENT_ADD_INCLUDEDIRS "../7600lib")

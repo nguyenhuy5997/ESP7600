@@ -1,4 +1,4 @@
-/* * Data converted from C:/Users/ASUS/.espressif/frameworks/esp-idf-v4.4/workspace/ESP7600/build/esp-idf/mbedtls/x509_crt_bundle
+/* * Data converted from C:/Users/nguyenphuonglinh/.espressif/frameworks/esp-idf-v4.4/workspace/ESP7600/build/esp-idf/mbedtls/x509_crt_bundle
  */
 .data
 .section .rodata.embedded
