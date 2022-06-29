@@ -521,14 +521,15 @@ bool checkPDPstate(int *PDP_state)
 {
 	AT_res res;
 	int retry = 2;
-	char sub_buf[20];
+	char * sub_buf;
 	while (retry--)
 	{
 		_sendAT("AT+CNETSTART?");
 		res = ___readSerial(1000, "OK");
 		if (res == AT_OK)
 		{
-
+			sub_buf = getSubStrig((char*)simcom_7600.AT_buff, "+CNETSTART: ", "\r\n");
+			*PDP_state = atoi(sub_buf);
 			return true;
 		}
 		else if (res == AT_ERROR) return false;
@@ -539,14 +540,48 @@ bool openNetwork()
 {
 	AT_res res;
 	int retry = 2;
+	int PDP_state;
+	checkPDPstate(&PDP_state);
+	if (PDP_state == 2) return true;
+	else
+	{
+		while (retry--)
+		{
+			_sendAT("AT+CNETSTART");
+			res = ___readSerial(2000, "OK");
+			if (res == AT_OK)
+			{
+				if (strstr((char*)simcom_7600.AT_buff, "+CNETSTART: 0"))
+				{
+					return true;
+				}
+				else return false;
+			}
+		}
+	}
+	return false;
+}
+bool getLBS(LBS *LBS_infor)
+{
+	AT_res res;
+	int retry = 2;
+	char* buf_temp;
+	buf_temp = malloc(sizeof(char)*50);
 	while (retry--)
 	{
-		_sendAT("AT+CNETSTART");
-		res = ___readSerial(1000, "OK");
+		_sendAT("AT+CLBS=1");
+		res = ___readSerial(10000, "+CLBS:");
 		if (res == AT_OK)
 		{
-			if (strstr((char*)simcom_7600.AT_buff, "+CNETSTART: 0"))
+			if (strstr((char*)simcom_7600.AT_buff, "+CLBS: 0"))
 			{
+				float lat, lon;
+				uint16_t acc;
+				buf_temp = getSubStrig((char*)simcom_7600.AT_buff, "+CLBS: 0,", "\r\n");
+				printf("%s\r\n", buf_temp);
+				sscanf(buf_temp, "%f,%f,%"SCNd16"", &lat, &lon, &acc);
+				printf("%f,%f", lat, lon);
+				LBS_infor->fix_status = 1;
 				return true;
 			}
 			else return false;

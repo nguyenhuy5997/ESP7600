@@ -31,7 +31,7 @@
 #include "simcom7600.h"
 #include "7600_config.h"
 #include "../string_user/location_parser.h"
-
+#include "../string_user/string_parse.h"
 #define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)
 #define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)
 #define ECHO_TASK_STACK_SIZE    (2048)
@@ -57,8 +57,9 @@ typedef struct client_t
 }client;
 typedef struct LBS_t
 {
-	long lat;
-	long lon;
+	float lat;
+	float lon;
+	uint16_t acc;
 	bool fix_status;
 }LBS;
 typedef enum
@@ -89,6 +90,6 @@ bool sendSMS(char *phone, char *text);
 bool httpGet(char * url, uint32_t* len);
 bool httpReadRespond(uint8_t* data, int len_expect, uint16_t *len_real);
 bool checkPDPstate(int *PDP_state);
+bool openNetwork();
 bool getLBS(LBS *LBS_infor);
-
 #endif /* SIMCOM7600_SIMCOM7600_H_ */

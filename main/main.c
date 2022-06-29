@@ -40,6 +40,7 @@ client mqttClient7600 = {};
 gps gps_7600;
 Network_Signal network7600 = {};
 Device_Infor deviceInfor = {};
+LBS LBS_location;
 void GetDeviceTimestamp(long *time_stamp)
 {
 	struct timeval time_now;
@@ -111,7 +112,7 @@ static void main_proc(void *arg)
 			goto POWER_ON;
 		}
 MQTT:
-		res = networkType(GSM, 3);
+		res = networkType(BOTH, 3);
 		if(res) ESP_LOGW(TAG, "Select network OK");
 		else
 		{
@@ -143,14 +144,39 @@ MQTT:
 		if(res) ESP_LOGW(TAG, "MQTT Sucribe OK");
 		else
 		{
-			if(!isInit(3)) goto MQTT;
-			ESP_LOGE(TAG, "MQTT Sucribe FALSE");
+			if(!isInit(3))
+			{
+				ESP_LOGE(TAG, "MQTT Sucribe FALSE");
+				goto MQTT;
+			}
 		}
-//		update_handler();
+		res = openNetwork();
+		if (res) ESP_LOGW(TAG, "Network Opened");
+		else
+		{
+			if(!isInit(3))
+			{
+				ESP_LOGE(TAG, "Network Open FALSE");
+				goto POWER_ON;
+			}
+		}
 		while(1)
 		{
+			memset(&LBS_location, 0, sizeof(LBS_location));
 			memset(&gps_7600, 0, sizeof(gps_7600));
 			readGPS(&gps_7600);
+			res = getLBS(&LBS_location);
+			if (res && LBS_location.fix_status)
+			{
+				gps_7600.GPSfixmode = 2;
+				gps_7600.lat = LBS_location.lat;
+				gps_7600.lon = LBS_location.lon;
+				ESP_LOGW(TAG, "LBS get location OK");
+			}
+			else
+			{
+				ESP_LOGE(TAG, "LBS get location FALSE");
+			}
 			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
 			{
 				networkInfor(5, &network7600);
