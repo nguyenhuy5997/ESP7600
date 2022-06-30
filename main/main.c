@@ -160,6 +160,9 @@ MQTT:
 				goto POWER_ON;
 			}
 		}
+//		res = sendSMS("+84947936312", "dit me may");
+//		if (res) ESP_LOGW(TAG, "SMS send OK");
+//		else ESP_LOGE(TAG, "SMS send FALSE");
 		while(1)
 		{
 			memset(&LBS_location, 0, sizeof(LBS_location));
@@ -171,6 +174,7 @@ MQTT:
 				gps_7600.GPSfixmode = 2;
 				gps_7600.lat = LBS_location.lat;
 				gps_7600.lon = LBS_location.lon;
+				gps_7600.acc = LBS_location.acc;
 				ESP_LOGW(TAG, "LBS get location OK");
 			}
 			else

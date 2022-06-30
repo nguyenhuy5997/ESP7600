@@ -16,8 +16,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include <stdbool.h>
-
-char *getSubStrig(char *source, char *start, char *end);
+void getSubStrig(char *source, char *start, char *end, char *out);
 
 
 
