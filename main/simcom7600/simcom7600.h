@@ -49,8 +49,8 @@ typedef struct simcom_t
 }simcom;
 typedef struct client_t
 {
-	char password[20];
-	char id[20];
+	char password[50];
+	char id[100];
 	char broker[50];
 	int	index;
 	int sv_type;

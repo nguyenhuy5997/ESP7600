@@ -181,8 +181,8 @@ bool _mqttStart(int retry)
 bool _accquireClient(client clientMqtt, int retry)
 {
 	AT_res res;
-	char buff[100];
-	sprintf(buff, "AT+CMQTTACCQ=%d,\"%s\",%d", clientMqtt.index, clientMqtt.id, clientMqtt.sv_type);
+	char buff[200];
+	sprintf(buff, "AT+CMQTTACCQ=%d,\"%s\",%d", clientMqtt.index, "123", clientMqtt.sv_type);
 	while (retry--)
 	{
 		_sendAT(buff);
@@ -200,7 +200,7 @@ bool mqttConnect(client clientMqtt, int retry)
 	if (!res) return false;
 	res = _accquireClient(clientMqtt, 3);
 	if (!res) return false;
-	char buff_send[200];
+	char buff_send[300];
 	sprintf(buff_send, "AT+CMQTTCONNECT=%d,\"%s\",60,1,\"%s\",\"%s\"", clientMqtt.index, clientMqtt.broker, clientMqtt.id, clientMqtt.password);
 	char buff_exp[20];
 	sprintf(buff_exp, "CMQTTCONNECT: %d,0", clientMqtt.index);
