@@ -19,6 +19,7 @@
 #include "esp_log.h"
 #include "driver/timer.h"
 #include "../json_user/json_user.h"
-void wifi_scan(char* Wifi_Buffer);
+#include "../common.h"
+void wifi_scan(apInfor msg_ap_infor[], uint8_t* msg_ap_count);
 
 #endif /* MAIN_WIFI_CELL_WIFI_CELL_H_ */

@@ -105,101 +105,78 @@ bool CPSI_Decode(char* str, Network_Signal *Device_Singnal)
 	return false;
 }
 
-void getGPS(char *getGSPraw, gps *gps_7600){
-	char    GPSraw[128];
-	char    GPSdata[32][20];
-	char    GPSdatedata[16], GPStimedata[16];
-	char    GPSnorth, GPSeast;
-	float   RAWlat = 0, RAWlon = 0, GPSlat = 0, GPSlong = 0;
-	int     GPSfixmode = 0;
-	int     GPSyear, GPSmonth, GPSdate;
-	int     GPShours, GPSminutes, GPSseconds;
-	int     GPSs = 0, GLONASSs = 0, BEIDOUs = 0 ;
-	float   accuracy;
-	float   GPSaltitude = 0, GPSspeed = 0;
-	int     GPSready = 0;
-	int     vsat, usat;
-	int     t = 0, n = 0, i = 0;
-	strcpy (GPSraw, getGSPraw);
-	int len = strlen(GPSraw);
-	for (i = 0; i <= len; i++){
-		if (GPSraw[i] != ',') {
-			if (n <= 16) {
-				GPSdata[n][t] = GPSraw[i];
-				t++;
-			}
-		}
-		else {
-			GPSdata[n][t] = '\0';
-			n++; t = 0;
-		}
+void getGPS(char *buffer, gps * _gps)
+{
+	uint16_t year;
+	uint8_t month;
+	uint8_t day;
+	uint8_t hour;
+	uint8_t min;
+	uint8_t sec;
+	char gpsbuffer[120];
+	_gps->GPSfixmode = 0;
+	strncpy(gpsbuffer, buffer, 120);
+	// skip GPS run status
+	char *tok = strtok(gpsbuffer, ",");
+	if (! tok) return;
+	// skip fix status
+	tok = strtok(NULL, ",");
+	if (! tok)
+	{
+		_gps->GPSfixmode = 0;
+		return;
 	}
-	GPSfixmode = (int)GPSdata[0][0] - 48;
-	gps_7600->GPSfixmode = GPSfixmode;
-	if (GPSfixmode > 1) {
-		GPSs        = atoi(GPSdata[1]);
-		GLONASSs    = atoi(GPSdata[2]);
-		BEIDOUs     = atoi(GPSdata[3]);
-		RAWlat      = atof(GPSdata[4]);
-		GPSnorth    = GPSdata[5][0];
-		RAWlon      = atof(GPSdata[6]);
-		GPSeast     = GPSdata[7][0];
-		strcpy(GPSdatedata,  GPSdata[8]);
-		strcpy(GPStimedata,  GPSdata[9]);
-		GPSaltitude = atof(GPSdata[10]);
-		GPSspeed    = atof(GPSdata[11]);
-		accuracy    = atof(GPSdata[13]);
-		if (RAWlat && RAWlon)
-		{
-			GPSlat = (floor(RAWlat / 100) + fmod(RAWlat, 100.) / 60) *
-					(GPSnorth == 'N' ? 1 : -1);
-			GPSlong = (floor(RAWlon / 100) + fmod(RAWlon, 100.) / 60) *
-					(GPSeast == 'E' ? 1 : -1);
-			GPSspeed = GPSspeed * 1.852;
-			sscanf(GPSdatedata, "%2d%2d%4d", &GPSdate, &GPSmonth, &GPSyear);
-			sscanf(GPStimedata, "%2d%2d%2d", &GPShours, &GPSminutes, &GPSseconds);
-			usat = GPSs + GLONASSs + BEIDOUs;
-			vsat = usat;
-			GPSready = 1;
-		}
+	else
+	{
+		_gps->GPSfixmode = atoi(tok);
 	}
-	if(GPSready){
-		printf("\n\nLat: %3.8f, Long: %3.8f\n", GPSlat, GPSlong);
-		printf("Speed: %3.2fKph  Alti: %4.2fM\n", GPSspeed, GPSaltitude);
-		printf("Visible Satellites: %d  Used Satellites: %d\n", vsat, usat);
-		printf("Accuracy: %2.1f\n", accuracy);
-		printf("Date: %d-%d-%d\n", GPSyear, GPSmonth, GPSdate);
-		printf("Time: %d:%d:%d\n", GPShours, GPSminutes, GPSseconds);
-		gps_7600->lat = GPSlat;
-		gps_7600->lon = GPSlong;
-		gps_7600->speed = GPSspeed;
-		gps_7600->alt = GPSaltitude;
-		gps_7600->acc = accuracy;
-		gps_7600->bei_num = BEIDOUs;
-		gps_7600->glo_num = GLONASSs;
-		gps_7600->gps_num = GPSs;
-		gps_7600->vsat = usat;
-		if (GPSyear < 2000) {
-			GPSyear += 2000;
-		}
-		struct tm s;
-		s.tm_sec    = (GPSseconds);
-		s.tm_min    = (GPSminutes);
-		s.tm_hour   = (GPShours);
-		s.tm_mday   = (GPSdate);
-		s.tm_mon    = (GPSmonth - 1);
-		s.tm_year   = (GPSyear - 1900);
-		time_t epoch;
-		epoch = mktime(&s);
-		if (epoch == -1) {
-			//
-		}
-		else {
-			gps_7600->epoch = epoch;
-			printf("epoch: %ld\r\n", gps_7600->epoch);
-		}
+	if(_gps->GPSfixmode == 1)
+	{
+		// only grab date and time if needed
+		char *date = strtok(NULL, ",");
+		if (! date) return;
+		// Seconds
+		char *ptr = date + 12;
+		sec = atof(ptr);
+		// Minutes
+		ptr[0] = 0;
+		ptr = date + 10;
+		min = atoi(ptr);
+		// Hours
+		ptr[0] = 0;
+		ptr = date + 8;
+		hour = atoi(ptr);
+		// Day
+		ptr[0] = 0;
+		ptr = date + 6;
+		day = atoi(ptr);
+		// Month
+		ptr[0] = 0;
+		ptr = date + 4;
+		month = atoi(ptr);
+		// Year
+		ptr[0] = 0;
+		ptr = date;
+		year = atoi(ptr);
+		// grab the latitude
+		char *latp = strtok(NULL, ",");
+		if (! latp) return;
+		// grab longitude
+		char *longp = strtok(NULL, ",");
+		if (! longp) return;
+		_gps->lat= atof(latp);
+		_gps->lon = atof(longp);
+		// grab altitude
+		char *altp = strtok(NULL, ",");
+		if (! altp) return;
+		_gps->alt = atof(altp);
+		// grab the speed in km/h
+		char *speedp = strtok(NULL, ",");
+		if (! speedp) return;
+		_gps->speed = atof(speedp);
 	}
 }
+
 void MQTT_Location_Payload_Convert(char* payload_str, gps hgps, Network_Signal Device_signal, Device_Infor Device_infor)
 {
 	memset(payload_str, 0, 500);

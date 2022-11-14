@@ -16,8 +16,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "../main/simcom7600/simcom7600.h"
-#include "../main/common.h"
+#include "../simcom7070/simcom7070.h"
+#include "../common.h"
 
 esp_err_t  update_handler();
 

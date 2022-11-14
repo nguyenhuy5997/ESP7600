@@ -7,7 +7,7 @@
 
 #ifndef MAIN_COMMON_H_
 #define MAIN_COMMON_H_
-
+#include "esp_wifi.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,8 +33,9 @@ typedef enum
 {
 	GSM,
 	LTE,
+	NB,
 	BOTH,
-}network;
+} network;
 typedef struct
 {
 	network Network_type;
@@ -45,12 +46,29 @@ typedef struct
 	int16_t RSRP;
 	int16_t RSRQ;
 	int RSSI;
-}Network_Signal;
+} Network_Signal;
 typedef struct
 {
 	long Timestamp;
 	uint8_t Bat_Level;
 	uint16_t Bat_Voltage;
 	char Version[6];
-}Device_Infor;
+} Device_Infor;
+typedef struct
+{
+	uint8_t bssid[6];
+	int8_t  rssi;
+} apInfor;
+typedef struct
+{
+	int GPSfixmode;
+	float lat;
+	float lon;
+	network net;
+	Network_Signal netSignal;
+	uint8_t Bat_Level;
+	apInfor ap_infor[10];
+	uint8_t ap_count;
+} msgInfor;
+
 #endif /* MAIN_COMMON_H_ */
