@@ -117,12 +117,22 @@ bool waitModuleReady(int timeout)
 bool switchGPS(bool enable, int retry)
 {
 	AT_res res;
-	char buff[10];
-	sprintf(buff, "AT+CGPS=%d", enable);
+	char buff[20];
+	sprintf(buff, "AT+CGPS?");
 	while(retry--)
 	{
 		_sendAT(buff);
 		res = ___readSerial(1000, "OK");
+		if (enable && strstr((char*)simcom_7600.AT_buff, "+CGPS: 1")) return true;
+		else if(!enable && strstr((char*)simcom_7600.AT_buff, "+CGPS: 0")) return true;
+		if (res == AT_OK) break;
+	}
+	sprintf(buff, "AT+CGPS=%d", enable);
+	while(retry--)
+	{
+		_sendAT(buff);
+		if(enable)	res = ___readSerial(1000, "OK");
+		else res = ___readSerial(1000, "+CGPS: 0");
 		if (res == AT_OK) return true;
 		else if (res == AT_ERROR) return false;
 	}

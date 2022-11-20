@@ -72,6 +72,7 @@ typedef enum
 
 void init_simcom(uart_port_t uart_num, int tx_io_num, int rx_io_num, int baud_rate);
 bool isInit(int retry);
+bool waitPB_Done(uint32_t timeout);
 bool echoATSwtich(bool enable, int retry);
 bool waitModuleReady(int timeout);
 bool powerOff(int retry);

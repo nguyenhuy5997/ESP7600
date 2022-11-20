@@ -66,7 +66,8 @@ void init_gpio_output()
 	io_conf.pull_down_en = 0;
 	io_conf.pull_up_en = 0;
 	gpio_config(&io_conf);
-	gpio_set_level(POWER_KEY, 1);
+	//gpio_set_level(POWER_KEY, 1);
+	gpio_set_level(nRST, 0);
 }
 void initMqttClient(client* client, char* id, int sv_type, char* user_password, char* broker_mqtt)
 {
@@ -92,8 +93,13 @@ static void main_proc(void *arg)
 	{
 		POWER_ON:
 		ESP_LOGI(TAG, "----------> START PROGRAM <----------\r\n");
-
-		res = powerOn(POWER_KEY);
+		gpio_set_level(nRST, 0);
+		vTaskDelay(5000/portTICK_PERIOD_MS);
+//		res = powerOn(POWER_KEY);
+//		waitModuleReady(20000);
+		res = isInit(20);
+		if(res) ESP_LOGW(TAG, "Module Init OK");
+		else ESP_LOGE(TAG, "Module Init FALSE");
 		if (res)
 		{
 			ESP_LOGW(TAG, "Module power on OK");
@@ -112,7 +118,7 @@ static void main_proc(void *arg)
 		res = echoATSwtich(0, 3);
 		if(res) ESP_LOGW(TAG, "Turn off echo OK");
 		else ESP_LOGE(TAG, "Turn off echo FALSE");
-
+		//switchGPS(0, 5);
 		res = switchGPS(1, 5);
 		if(res) ESP_LOGW(TAG, "Turn on GPS OK");
 		else
