@@ -16,8 +16,9 @@
 #include <math.h>
 #include <sys/time.h>
 #include <stdbool.h>
+#include "../json_user/json_user.h"
 void getSubStrig(char *source, char *start, char *end, char *out);
-
-
+void parse_ble_msg(uint8_t data_byte[31], sensor_data_t * sensor_data);
+void conver_message_send(char* msg, smartbox_data_t smartbox_data);
 
 #endif /* MAIN_STRING_USER_STRING_PARSE_H_ */

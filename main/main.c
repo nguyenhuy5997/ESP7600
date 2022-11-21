@@ -66,6 +66,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 
 #define VERSION "0.0.1"
 
+smartbox_data_t smartBox = {0};
 char wifi_buffer[400];
 client mqttClient7600 = {};
 gps gps_7600;
@@ -153,7 +154,15 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         {
         	ESP_LOGI(GATTC_TAG, "Add %d to white list", i);
         	esp_ble_gap_update_whitelist(true, whitelist_addr[i], BLE_WL_ADDR_TYPE_RANDOM);
+        	smartBox.ble_data[i].mac[0] = whitelist_addr[i][0];
+        	smartBox.ble_data[i].mac[1] = whitelist_addr[i][1];
+        	smartBox.ble_data[i].mac[2] = whitelist_addr[i][2];
+        	smartBox.ble_data[i].mac[3] = whitelist_addr[i][3];
+        	smartBox.ble_data[i].mac[4] = whitelist_addr[i][4];
+        	smartBox.ble_data[i].mac[5] = whitelist_addr[i][5];
         }
+        smartBox.white_list_cnt = sizeof(whitelist_addr)/ sizeof(whitelist_addr[0]);
+
         uint16_t wl_length;
         esp_ble_gap_get_whitelist_size(&wl_length);
         ESP_LOGI(GATTC_TAG, "white list length: %d", wl_length);
@@ -190,6 +199,19 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 					adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
 					ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
 					esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
+					esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
+					for(int i = 0; i < smartBox.white_list_cnt; i++)
+					{
+						if(smartBox.ble_data[i].mac[0] == scan_result->scan_rst.bda[0] &&
+						   smartBox.ble_data[i].mac[1] == scan_result->scan_rst.bda[1] &&
+						   smartBox.ble_data[i].mac[2] == scan_result->scan_rst.bda[2] &&
+						   smartBox.ble_data[i].mac[3] == scan_result->scan_rst.bda[3] &&
+						   smartBox.ble_data[i].mac[4] == scan_result->scan_rst.bda[4] &&
+						   smartBox.ble_data[i].mac[5] == scan_result->scan_rst.bda[5] )
+						{
+							parse_ble_msg(scan_result->scan_rst.ble_adv, &smartBox.ble_data[i]);
+						}
+					}
 					if (scan_result->scan_rst.adv_data_len > 0) {
 						ESP_LOGI(GATTC_TAG, "adv data:");
 						esp_log_buffer_hex(GATTC_TAG, &scan_result->scan_rst.ble_adv[0], scan_result->scan_rst.adv_data_len);
@@ -235,6 +257,8 @@ void main_proc(void *arg)
 	{
 		POWER_ON:
 		ESP_LOGI(TAG, "----------> START PROGRAM <----------\r\n");
+		gpio_set_level(nRST, 1);
+		vTaskDelay(100/portTICK_PERIOD_MS);
 		gpio_set_level(nRST, 0);
 		vTaskDelay(5000/portTICK_PERIOD_MS);
 		if(isInit(20)) ESP_LOGW(TAG, "Module Init OK");
@@ -252,20 +276,20 @@ void main_proc(void *arg)
 			goto POWER_ON;
 		}
 MQTT:
-		res = networkType(BOTH, 3);
+		res = networkType(LTE, 3);
 		if(res) ESP_LOGW(TAG, "Select network OK");
 		else
 		{
 			ESP_LOGE(TAG, "Select network FALSE");
-			if(!isInit(3)) goto POWER_ON;
+			goto POWER_ON;
 		}
 
 		res = isRegistered(10);
 		if(res) ESP_LOGW(TAG, "Module registed OK");
 		else
 		{
-			if(!isInit(3)) goto POWER_ON;
 			ESP_LOGE(TAG, "Module registed FALSE");
+			goto POWER_ON;
 		}
 
 		mqttDisconnect(mqttClient7600, 3);
@@ -276,8 +300,8 @@ MQTT:
 		if(res) ESP_LOGW(TAG, "MQTT Connected");
 		else
 		{
-			if(!isInit(3)) goto MQTT;
 			ESP_LOGE(TAG, "MQTT can not connect");
+			goto POWER_ON;
 		}
 
 		res = mqttSubcribe(mqttClient7600, SUB_TOPIC, 1, 3, subcribe_callback);
@@ -302,37 +326,29 @@ MQTT:
 		}
 		while(1)
 		{
-			memset(&LBS_location, 0, sizeof(LBS_location));
 			memset(&gps_7600, 0, sizeof(gps_7600));
-			readGPS(&gps_7600);
+			int GPS_scan_time = 5;
+			while (GPS_scan_time--)
+			{
+				readGPS(&gps_7600);
+				vTaskDelay(1000/portTICK_PERIOD_MS);
+			}
+
 			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
 			{
-				networkInfor(5, &network7600);
-				cJSON *root = cJSON_CreateObject();
-				cJSON_AddNumberToObject(root, "latitude", gps_7600.lat);
-				cJSON_AddNumberToObject(root, "longitude", gps_7600.lon);
-				cJSON_AddNumberToObject(root, "speed", gps_7600.speed);
-				cJSON_AddStringToObject(root, "status", "On route");
-//				MQTT_Location_Payload_Convert(pub_mqtt, gps_7600, network7600,  deviceInfor);
-				res = mqttPublish(mqttClient7600, cJSON_Print(root), PUB_TOPIC, 1, 1);
-				if(res)
-				{
-					ESP_LOGW(TAG, "Publish OK");
-				}
-				else
-				{
-					ESP_LOGE(TAG, "Publish FALSE");
-					goto MQTT;
-				}
+				smartBox.lat = gps_7600.lat;
+				smartBox.lon = gps_7600.lon;
+				smartBox.acc = gps_7600.acc;
+				smartBox.speed = gps_7600.speed;
+				smartBox.epoch = gps_7600.epoch;
 			}
 			else
 			{
-				networkInfor(5, &network7600);
-				wifi_scan(wifi_buffer);
-				MQTT_WiFi_Payload_Convert(pub_mqtt, wifi_buffer, network7600, deviceInfor);
-				res = mqttPublish(mqttClient7600, pub_mqtt, PUB_TOPIC, 1, 1);
-				memset(wifi_buffer, 0, sizeof(wifi_buffer));
+
 			}
+			char publishPayload[1000] = {0};
+			conver_message_send(publishPayload, smartBox);
+			res = mqttPublish(mqttClient7600, publishPayload, PUB_TOPIC, 1, 1);
 			if(res)
 			{
 				ESP_LOGW(TAG, "Publish OK");
@@ -342,7 +358,7 @@ MQTT:
 				ESP_LOGE(TAG, "Publish FALSE");
 				goto MQTT;
 			}
-			vTaskDelay(1000/portTICK_PERIOD_MS);
+			vTaskDelay(10000/portTICK_PERIOD_MS);
 		 }
 	}
 }
@@ -370,8 +386,8 @@ void app_main(void)
 	sprintf(deviceInfor.Version, "%s", VERSION);
 
 	deviceInfor.Bat_Level = 100;
-//	init_gpio_output();
-//	init_simcom(ECHO_UART_PORT_NUM_1, ECHO_TEST_TXD_1, ECHO_TEST_RXD_1, ECHO_UART_BAUD_RATE);
-//	xTaskCreate(main_proc, "main", 4096, NULL, 10, NULL);
+	init_gpio_output();
+	init_simcom(ECHO_UART_PORT_NUM_1, ECHO_TEST_TXD_1, ECHO_TEST_RXD_1, ECHO_UART_BAUD_RATE);
+	xTaskCreate(main_proc, "main", 4096*4, NULL, 10, NULL);
 
 }

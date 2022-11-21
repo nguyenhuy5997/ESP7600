@@ -53,4 +53,26 @@ typedef struct
 	uint16_t Bat_Voltage;
 	char Version[6];
 }Device_Infor;
+typedef struct _sensor_data
+{
+    uint8_t mac[6];
+    uint8_t data[31];
+    uint8_t data_len;
+    uint32_t frame_cnt;
+    uint8_t alarm;
+    int8_t temp;
+    uint16_t pres;
+    uint16_t velo;
+    uint8_t bat;
+} sensor_data_t;
+typedef struct _smartbox_data
+{
+    float lat;
+	float lon;
+	float speed;
+	float acc;
+	long epoch;
+	uint8_t white_list_cnt;
+	sensor_data_t ble_data[22];
+} smartbox_data_t;
 #endif /* MAIN_COMMON_H_ */
