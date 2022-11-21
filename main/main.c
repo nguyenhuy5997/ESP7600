@@ -28,20 +28,28 @@
 #include "../main/wifi_cell/wifi_cell.h"
 #include "../main/OTA_LTE/FOTA_LTE.h"
 
-#define THINGSBOARD
+#define EMQX
 #define TAG_MAIN "SIMCOM"
 
-#ifdef INNOWAY
-#define CLIENT_ID "MAN02ND09210"
-#define CLIENT_PW "z4r8A7CU6YEPrVuU115Q"
-#define MQTT_BROKER "tcp://vttmqtt.innoway.vn:1883"
-#define
-#else if THINGSBOARD
-#define CLIENT_ID "eyJhbGciOiJIUzI1NiIsInR5cC"
-#define CLIENT_PW "eyJhbGciOiJIUzI1NiIsInR5cC"
-#define MQTT_BROKER "tcp://thingsboard.cloud:1883"
-#define PUB_TOPIC "v1/devices/me/telemetry"
+#ifdef	INNOWAY
+	#define CLIENT_ID 			"MAN02ND09210"
+	#define CLIENT_PW 			"z4r8A7CU6YEPrVuU115Q"
+	#define MQTT_BROKER 		"tcp://vttmqtt.innoway.vn:1883"
 #endif
+#ifdef THINGSBOARD
+	#define CLIENT_ID 			"eyJhbGciOiJIUzI1NiIsInR5cC"
+	#define CLIENT_PW 			"eyJhbGciOiJIUzI1NiIsInR5cC"
+	#define MQTT_BROKER 		"tcp://thingsboard.cloud:1883"
+	#define PUB_TOPIC 			"v1/devices/me/telemetry"
+#endif
+#ifdef EMQX
+	#define MQTT_BROKER 		"tcp://broker.emqx.io:1883"
+	#define CLIENT_ID 			"47d1b050-6942-11ed-9022-0242ac120002"
+	#define CLIENT_PW 			"47d1b050-6942-11ed-9022-0242ac120002"
+	#define PUB_TOPIC 			"tpmsdata/47d1b050-6942-11ed-9022-0242ac120002"
+	#define SUB_TOPIC 			"tpmsdata/47d1b050-6942-11ed-9022-0242ac120002"
+#endif
+
 #define VERSION "0.0.1"
 
 char wifi_buffer[400];
@@ -83,7 +91,8 @@ void subcribe_callback(char * data)
 	char* _buff;
 	_buff = strstr(data, "{");
 	sscanf(_buff, "%s", _buff);
-	JSON_analyze_sub(_buff, &deviceInfor.Timestamp);
+	ESP_LOGI(TAG, "Subcribe mess: %s", _buff);
+//	JSON_analyze_sub(_buff, &deviceInfor.Timestamp);
 }
 static void main_proc(void *arg)
 {
@@ -95,30 +104,13 @@ static void main_proc(void *arg)
 		ESP_LOGI(TAG, "----------> START PROGRAM <----------\r\n");
 		gpio_set_level(nRST, 0);
 		vTaskDelay(5000/portTICK_PERIOD_MS);
-//		res = powerOn(POWER_KEY);
-//		waitModuleReady(20000);
-		res = isInit(20);
-		if(res) ESP_LOGW(TAG, "Module Init OK");
-		else ESP_LOGE(TAG, "Module Init FALSE");
-		if (res)
-		{
-			ESP_LOGW(TAG, "Module power on OK");
-		}
-		else
-		{
-			ESP_LOGE(TAG, "Module power on FALSE");
-			powerOff_(POWER_KEY);
-			goto POWER_ON;
-		}
-
-		res = isInit(5);
-		if(res) ESP_LOGW(TAG, "Module Init OK");
+		if(isInit(20)) ESP_LOGW(TAG, "Module Init OK");
 		else ESP_LOGE(TAG, "Module Init FALSE");
 
 		res = echoATSwtich(0, 3);
 		if(res) ESP_LOGW(TAG, "Turn off echo OK");
 		else ESP_LOGE(TAG, "Turn off echo FALSE");
-		//switchGPS(0, 5);
+
 		res = switchGPS(1, 5);
 		if(res) ESP_LOGW(TAG, "Turn on GPS OK");
 		else
@@ -155,16 +147,16 @@ MQTT:
 			ESP_LOGE(TAG, "MQTT can not connect");
 		}
 
-//		res = mqttSubcribe(mqttClient7600, "messages/MAN02ND09210/control", 1, 3, subcribe_callback);
-//		if(res) ESP_LOGW(TAG, "MQTT Sucribe OK");
-//		else
-//		{
-//			if(!isInit(3))
-//			{
-//				ESP_LOGE(TAG, "MQTT Sucribe FALSE");
-//				goto MQTT;
-//			}
-//		}
+		res = mqttSubcribe(mqttClient7600, SUB_TOPIC, 1, 3, subcribe_callback);
+		if(res) ESP_LOGW(TAG, "MQTT Sucribe OK");
+		else
+		{
+			if(!isInit(3))
+			{
+				ESP_LOGE(TAG, "MQTT Sucribe FALSE");
+				goto MQTT;
+			}
+		}
 		res = openNetwork();
 		if (res) ESP_LOGW(TAG, "Network Opened");
 		else
@@ -189,7 +181,7 @@ MQTT:
 				cJSON_AddNumberToObject(root, "speed", gps_7600.speed);
 				cJSON_AddStringToObject(root, "status", "On route");
 //				MQTT_Location_Payload_Convert(pub_mqtt, gps_7600, network7600,  deviceInfor);
-				res = mqttPublish(mqttClient7600, cJSON_Print(root), "v1/devices/me/telemetry", 1, 1);
+				res = mqttPublish(mqttClient7600, cJSON_Print(root), PUB_TOPIC, 1, 1);
 				if(res)
 				{
 					ESP_LOGW(TAG, "Publish OK");
@@ -200,23 +192,23 @@ MQTT:
 					goto MQTT;
 				}
 			}
-//			else
-//			{
-//				networkInfor(5, &network7600);
-//				wifi_scan(wifi_buffer);
-//				MQTT_WiFi_Payload_Convert(pub_mqtt, wifi_buffer, network7600, deviceInfor);
-//				res = mqttPublish(mqttClient7600, pub_mqtt, "messages/MAN02ND09210/wificell", 1, 1);
-//				memset(wifi_buffer, 0, sizeof(wifi_buffer));
-//			}
-//			if(res)
-//			{
-//				ESP_LOGW(TAG, "Publish OK");
-//			}
-//			else
-//			{
-//				ESP_LOGE(TAG, "Publish FALSE");
-//				goto MQTT;
-//			}
+			else
+			{
+				networkInfor(5, &network7600);
+				wifi_scan(wifi_buffer);
+				MQTT_WiFi_Payload_Convert(pub_mqtt, wifi_buffer, network7600, deviceInfor);
+				res = mqttPublish(mqttClient7600, pub_mqtt, PUB_TOPIC, 1, 1);
+				memset(wifi_buffer, 0, sizeof(wifi_buffer));
+			}
+			if(res)
+			{
+				ESP_LOGW(TAG, "Publish OK");
+			}
+			else
+			{
+				ESP_LOGE(TAG, "Publish FALSE");
+				goto MQTT;
+			}
 			vTaskDelay(1000/portTICK_PERIOD_MS);
 		 }
 	}

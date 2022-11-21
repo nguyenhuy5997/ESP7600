@@ -49,6 +49,8 @@ void uart_simcom(void *arg)
 			if(strstr((char*)data, "+CMQTTRXSTART"))
 			{
 				simcom_7600.mqtt_CB(data);
+				memcpy(simcom_7600.AT_buff, data, len);
+				simcom_7600.AT_buff_avai = true;
 			}
 			else
 			{
