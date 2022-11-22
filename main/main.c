@@ -198,8 +198,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 				case ESP_GAP_SEARCH_INQ_RES_EVT:
 					adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
 					ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
-					esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
-					esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
+//					esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
+//					esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
 					for(int i = 0; i < smartBox.white_list_cnt; i++)
 					{
 						if(smartBox.ble_data[i].mac[0] == scan_result->scan_rst.bda[0] &&
@@ -213,8 +213,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 						}
 					}
 					if (scan_result->scan_rst.adv_data_len > 0) {
-						ESP_LOGI(GATTC_TAG, "adv data:");
-						esp_log_buffer_hex(GATTC_TAG, &scan_result->scan_rst.ble_adv[0], scan_result->scan_rst.adv_data_len);
+//						ESP_LOGI(GATTC_TAG, "adv data:");
+//						esp_log_buffer_hex(GATTC_TAG, &scan_result->scan_rst.ble_adv[0], scan_result->scan_rst.adv_data_len);
 					}
 					break;
 				default:
@@ -327,13 +327,15 @@ MQTT:
 		while(1)
 		{
 			memset(&gps_7600, 0, sizeof(gps_7600));
-			int GPS_scan_time = 5;
-			while (GPS_scan_time--)
+			int GPS_scan_time = 2;
+			while (GPS_scan_time-- )
 			{
 				readGPS(&gps_7600);
+				printf("run 1\r\n");
+				if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3) break;
 				vTaskDelay(1000/portTICK_PERIOD_MS);
 			}
-
+			printf("run 2\r\n");
 			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
 			{
 				smartBox.lat = gps_7600.lat;
@@ -346,8 +348,10 @@ MQTT:
 			{
 
 			}
+			printf("run 3\r\n");
 			char publishPayload[1000] = {0};
 			conver_message_send(publishPayload, smartBox);
+			printf("run 4\r\n");
 			res = mqttPublish(mqttClient7600, publishPayload, PUB_TOPIC, 1, 1);
 			if(res)
 			{
@@ -358,7 +362,7 @@ MQTT:
 				ESP_LOGE(TAG, "Publish FALSE");
 				goto MQTT;
 			}
-			vTaskDelay(10000/portTICK_PERIOD_MS);
+			vTaskDelay(1000/portTICK_PERIOD_MS);
 		 }
 	}
 }

@@ -49,17 +49,31 @@ void parse_ble_msg(uint8_t data_byte[31], sensor_data_t * sensor_data)
 
 void conver_message_send(char* msg, smartbox_data_t smartbox_data)
 {
+//	char * buffer = NULL;
 	cJSON *root = cJSON_CreateObject();
+	printf("run a\r\n");
 	cJSON *sensor_obj = cJSON_CreateArray();
+	printf("run b\r\n");
 	cJSON_AddNumberToObject(root, "lat", smartbox_data.lat);
+	printf("run c\r\n");
 	cJSON_AddNumberToObject(root, "lon", smartbox_data.lon);
+	printf("run d\r\n");
 	cJSON_AddNumberToObject(root, "speed", smartbox_data.speed);
+	printf("run e\r\n");
 	cJSON_AddNumberToObject(root, "acc", smartbox_data.acc);
+	printf("run f\r\n");
 	cJSON_AddNumberToObject(root, "time", smartbox_data.epoch);
+	printf("run g\r\n");
 	for(int i = 0; i < 4; i++)
 	{
 		json_add_sensor_data(sensor_obj, smartbox_data.ble_data[i]);
+		printf("run h\r\n");
 	}
 	json_add_obj(root, "sensor", sensor_obj);
+	printf("run i\r\n");
+//	buffer = cJSON_PrintUnformatted(root);
 	strcpy(msg, cJSON_PrintUnformatted(root));
+	printf("run j\r\n");
+	cJSON_Delete(root);
+	printf("run k\r\n");
 }
