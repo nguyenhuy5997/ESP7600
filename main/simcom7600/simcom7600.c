@@ -311,7 +311,7 @@ bool mqttPublish(client clientMqtt, char* data, char* topic, int qos, int retry)
 	while(_retry--)
 	{
 		_sendAT(buff_send);
-		_res = ___readSerial(5000, buff_exp);
+		_res = ___readSerial(10000, buff_exp);
 		if (_res == AT_OK) return true;
 		else if (_res == AT_ERROR) return false;
 	}

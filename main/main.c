@@ -76,7 +76,8 @@ LBS LBS_location;
 uint8_t whitelist_addr[][6] = {{0xf9, 0xe0, 0x0c, 0xf5, 0x4a, 0xca},
 								{0xea, 0x6e, 0x66, 0xe3, 0xa9, 0x5f},
 								{0xd0, 0x59, 0x55, 0xe2, 0x01, 0xd0},
-								{0xcb, 0xc6, 0x2f, 0xd5, 0xaf, 0x07}};
+								{0xcb, 0xc6, 0x2f, 0xd5, 0xaf, 0x07},
+								{0xe6, 0xed, 0xc6, 0xa0, 0x26, 0x1a}};
 
 void GetDeviceTimestamp(long *time_stamp)
 {
@@ -284,7 +285,7 @@ MQTT:
 			goto POWER_ON;
 		}
 
-		res = isRegistered(10);
+		res = isRegistered(40);
 		if(res) ESP_LOGW(TAG, "Module registed OK");
 		else
 		{
@@ -331,7 +332,7 @@ MQTT:
 			while (GPS_scan_time-- )
 			{
 				readGPS(&gps_7600);
-				printf("run 1\r\n");
+
 				if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3) break;
 				vTaskDelay(1000/portTICK_PERIOD_MS);
 			}
