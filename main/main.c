@@ -7,6 +7,8 @@
 #include <math.h>
 #include <sys/time.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/ringbuf.h"
+#include "freertos/semphr.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
 #include "esp_event.h"
@@ -25,6 +27,7 @@
 #include "esp_gattc_api.h"
 #include "esp_gatt_defs.h"
 #include "esp_gatt_common_api.h"
+#include "esp_task_wdt.h"
 #include "cJSON.h"
 #include "../main/simcom7600/simcom7600.h"
 #include "../main/simcom7600/7600_config.h"
@@ -33,41 +36,48 @@
 #include "../main/json_user/json_user.h"
 #include "../main/wifi_cell/wifi_cell.h"
 #include "../main/OTA_LTE/FOTA_LTE.h"
-
+#include "../main/SPIFFS/spiffs_user.h"
 #define GATTC_TAG "BT"
 #define PROFILE_NUM 1
 #define PROFILE_A_APP_ID 0
 
+void ota_proc(void *arg);
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 
-#define EMQX
+#define INNOWAY
 #define TAG_MAIN "SIMCOM"
 
 #ifdef	INNOWAY
 	#define CLIENT_ID 			"MAN02ND09210"
 	#define CLIENT_PW 			"z4r8A7CU6YEPrVuU115Q"
 	#define MQTT_BROKER 		"tcp://vttmqtt.innoway.vn:1883"
+	#define PUB_TOPIC 			"tpmsdata/0000000003"
+	#define SUB_TOPIC 			"tpmscmd/0000000003"
 #endif
 #ifdef THINGSBOARD
-	#define CLIENT_ID 			"eyJhbGciOiJIUzI1NiIsInR5cC"
-	#define CLIENT_PW 			"eyJhbGciOiJIUzI1NiIsInR5cC"
-	#define MQTT_BROKER 		"tcp://thingsboard.cloud:1883"
+	#define CLIENT_ID 			"n63wJMAfgXpnay5MqOqh"
+	#define CLIENT_PW 			"n63wJMAfgXpnay5MqOqh"
+	#define MQTT_BROKER 		"tcp://demo.thingsboard.io:1883"
 	#define PUB_TOPIC 			"v1/devices/me/telemetry"
+	#define SUB_TOPIC 			"v1/devices/me/attribute"
 #endif
 #ifdef EMQX
 	#define MQTT_BROKER 		"tcp://broker.emqx.io:1883"
 	#define CLIENT_ID 			"47d1b050-6942-11ed-9022-0242ac120002"
 	#define CLIENT_PW 			"47d1b050-6942-11ed-9022-0242ac120002"
 	#define PUB_TOPIC 			"tpmsdata/47d1b050-6942-11ed-9022-0242ac120002"
-	#define SUB_TOPIC 			"tpmsdata/47d1b050-6942-11ed-9022-0242ac120002"
+	#define SUB_TOPIC 			"tpmscmd/47d1b050-6942-11ed-9022-0242ac120002"
 #endif
 
 #define VERSION "0.0.1"
-
+bool Flag_start_ota = false;
+SemaphoreHandle_t smart_box_sem;
+RingbufHandle_t CMD_handle;
+TaskHandle_t main_proc_handle;
+TaskHandle_t ota_proc_handle;
 smartbox_data_t smartBox = {0};
-char wifi_buffer[400];
 client mqttClient7600 = {};
 gps gps_7600;
 Network_Signal network7600 = {};
@@ -78,7 +88,10 @@ uint8_t whitelist_addr[][6] = {{0xf9, 0xe0, 0x0c, 0xf5, 0x4a, 0xca},
 								{0xd0, 0x59, 0x55, 0xe2, 0x01, 0xd0},
 								{0xcb, 0xc6, 0x2f, 0xd5, 0xaf, 0x07},
 								{0xe6, 0xed, 0xc6, 0xa0, 0x26, 0x1a}};
-
+void esp_task_wdt_isr_user_handler(void)
+{
+	esp_restart();
+}
 void GetDeviceTimestamp(long *time_stamp)
 {
 	struct timeval time_now;
@@ -106,22 +119,16 @@ void initMqttClient(client* client, char* id, int sv_type, char* user_password, 
 	memcpy(client->password, user_password, strlen(user_password));
 	memcpy(client->broker, broker_mqtt, strlen(broker_mqtt));
 }
-void subcribe_callback(char * data)
-{
-	char* _buff;
-	_buff = strstr(data, "{");
-	sscanf(_buff, "%s", _buff);
-	ESP_LOGI(TAG, "Subcribe mess: %s", _buff);
-//	JSON_analyze_sub(_buff, &deviceInfor.Timestamp);
-}
+
 // Scan parameters
 static esp_ble_scan_params_t ble_scan_params = {
     .scan_type = BLE_SCAN_TYPE_ACTIVE,
     .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
-    .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ONLY_WLST,
+    .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
     .scan_interval = 0x50,
     .scan_window = 0x30,
-    .scan_duplicate = BLE_SCAN_DUPLICATE_DISABLE};
+    .scan_duplicate = BLE_SCAN_DUPLICATE_DISABLE
+};
 
 // GATT data structure
 struct gattc_profile_inst
@@ -151,22 +158,21 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     {
     case ESP_GATTC_REG_EVT:
         esp_ble_gap_set_scan_params(&ble_scan_params);
-        for ( int i = 0; i < sizeof(whitelist_addr)/ sizeof(whitelist_addr[0]); i ++)
-        {
-        	ESP_LOGI(GATTC_TAG, "Add %d to white list", i);
-        	esp_ble_gap_update_whitelist(true, whitelist_addr[i], BLE_WL_ADDR_TYPE_RANDOM);
-        	smartBox.ble_data[i].mac[0] = whitelist_addr[i][0];
-        	smartBox.ble_data[i].mac[1] = whitelist_addr[i][1];
-        	smartBox.ble_data[i].mac[2] = whitelist_addr[i][2];
-        	smartBox.ble_data[i].mac[3] = whitelist_addr[i][3];
-        	smartBox.ble_data[i].mac[4] = whitelist_addr[i][4];
-        	smartBox.ble_data[i].mac[5] = whitelist_addr[i][5];
-        }
-        smartBox.white_list_cnt = sizeof(whitelist_addr)/ sizeof(whitelist_addr[0]);
-
-        uint16_t wl_length;
-        esp_ble_gap_get_whitelist_size(&wl_length);
-        ESP_LOGI(GATTC_TAG, "white list length: %d", wl_length);
+//       for (int i = 0; i < sizeof(whitelist_addr)/sizeof(whitelist_addr[0]); i ++)
+//        {
+//        	ESP_LOGI(GATTC_TAG, "Add %d to white list", i);
+//        	esp_ble_gap_update_whitelist(true, whitelist_addr[i], BLE_WL_ADDR_TYPE_RANDOM);
+//        	smartBox.ble_data[i].mac[0] = whitelist_addr[i][0];
+//        	smartBox.ble_data[i].mac[1] = whitelist_addr[i][1];
+//        	smartBox.ble_data[i].mac[2] = whitelist_addr[i][2];
+//        	smartBox.ble_data[i].mac[3] = whitelist_addr[i][3];
+//        	smartBox.ble_data[i].mac[4] = whitelist_addr[i][4];
+//        	smartBox.ble_data[i].mac[5] = whitelist_addr[i][5];
+//        }
+//        uint16_t wl_length;
+//        esp_ble_gap_get_whitelist_size(&wl_length);
+//        smartBox.white_list_cnt = wl_length;
+//        ESP_LOGI(GATTC_TAG, "white list length: %d", wl_length);
         printf("1 - Register gatt event\n");
         break;
     default:
@@ -210,7 +216,11 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 						   smartBox.ble_data[i].mac[4] == scan_result->scan_rst.bda[4] &&
 						   smartBox.ble_data[i].mac[5] == scan_result->scan_rst.bda[5] )
 						{
+//							esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
+//							esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
 							parse_ble_msg(scan_result->scan_rst.ble_adv, &smartBox.ble_data[i]);
+//							ESP_LOGI(GATTC_TAG, "adv data:");
+//							esp_log_buffer_hex(GATTC_TAG, &scan_result->scan_rst.ble_adv[0], scan_result->scan_rst.adv_data_len);
 						}
 					}
 					if (scan_result->scan_rst.adv_data_len > 0) {
@@ -250,14 +260,83 @@ static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp
         }
     } while (0);
 }
+void subcribe_callback(char * data)
+{
+	char* _buff;
+	_buff = strstr(data, "{");
+	sscanf(_buff, "%s", _buff);
+	UBaseType_t res =  xRingbufferSend(CMD_handle, _buff, strlen(_buff), pdMS_TO_TICKS(1000));
+	if (res != pdTRUE) {
+		ESP_LOGE(TAG, "Failed to send CMD item\n");
+	}
+
+}
+void cmd_proc(void *arg)
+{
+	char * item = NULL;
+	size_t item_size;
+	esp_task_wdt_add(NULL);
+	esp_task_wdt_status(NULL);
+	while(1)
+	{
+		esp_task_wdt_reset();
+		item = (char *)xRingbufferReceive(CMD_handle, &item_size, pdMS_TO_TICKS(1000));
+		if(item)
+		{
+			if(strstr(item, "ADDWL"))
+			{
+				xSemaphoreTake(smart_box_sem, portMAX_DELAY);
+				JSON_analyze_MAC_update(item, &smartBox);
+				xSemaphoreGive(smart_box_sem);
+				//saveMAC("macinfor", smartBox);
+				writetofile("macinfor", item);
+				ESP_LOGW(TAG, "MAC after update:");
+				for(int i = 0; i < smartBox.white_list_cnt; i++)
+				{
+					ESP_LOGW(TAG, "%02x:%02x:%02x:%02x:%02x:%02x\r\n", smartBox.ble_data[i].mac[0],\
+													smartBox.ble_data[i].mac[1],\
+													smartBox.ble_data[i].mac[2],\
+													smartBox.ble_data[i].mac[3],\
+													smartBox.ble_data[i].mac[4],\
+													smartBox.ble_data[i].mac[5]);
+
+				}
+			}
+			if(strstr(item, "RMVWL"))
+			{
+				JSON_analyze_MAC_rmv(item, &smartBox);
+				saveMAC("macinfor", smartBox);
+				ESP_LOGW(TAG, "MAC after remove:");
+				for(int i = 0; i < smartBox.white_list_cnt; i++)
+				{
+					ESP_LOGW(TAG, "%02x:%02x:%02x:%02x:%02x:%02x\r\n", smartBox.ble_data[i].mac[0],\
+													smartBox.ble_data[i].mac[1],\
+													smartBox.ble_data[i].mac[2],\
+													smartBox.ble_data[i].mac[3],\
+													smartBox.ble_data[i].mac[4],\
+													smartBox.ble_data[i].mac[5]);
+				}
+			}
+			if(strstr(item, "OTA"))
+			{
+				//xTaskCreate(ota_proc, "ota_proc", 4096*6, NULL, 10, &ota_proc_handle);
+				Flag_start_ota = true;
+			}
+			vRingbufferReturnItem(CMD_handle, (void *)item);
+		}
+	}
+}
 void main_proc(void *arg)
 {
 	bool res;
-	char pub_mqtt[500];
+	char publishPayload[1000];
+    esp_task_wdt_add(NULL);
+    esp_task_wdt_status(NULL);
 	while(1)
 	{
 		POWER_ON:
 		ESP_LOGI(TAG, "----------> START PROGRAM <----------\r\n");
+		esp_task_wdt_reset();
 		gpio_set_level(nRST, 1);
 		vTaskDelay(100/portTICK_PERIOD_MS);
 		gpio_set_level(nRST, 0);
@@ -327,16 +406,23 @@ MQTT:
 		}
 		while(1)
 		{
+			//while(!smartBox.white_list_cnt);
+			esp_task_wdt_reset();
+			if (Flag_start_ota)
+			{
+				esp_task_wdt_init(600, false);
+				esp_task_wdt_add(NULL);
+				mqttDisconnect(mqttClient7600, 3);
+				update_handler();
+			}
 			memset(&gps_7600, 0, sizeof(gps_7600));
-			int GPS_scan_time = 2;
+			int GPS_scan_time = 1;
 			while (GPS_scan_time-- )
 			{
 				readGPS(&gps_7600);
-
 				if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3) break;
 				vTaskDelay(1000/portTICK_PERIOD_MS);
 			}
-			printf("run 2\r\n");
 			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
 			{
 				smartBox.lat = gps_7600.lat;
@@ -349,10 +435,9 @@ MQTT:
 			{
 
 			}
-			printf("run 3\r\n");
-			char publishPayload[1000] = {0};
+			xSemaphoreTake(smart_box_sem, portMAX_DELAY);
 			conver_message_send(publishPayload, smartBox);
-			printf("run 4\r\n");
+		    xSemaphoreGive(smart_box_sem);
 			res = mqttPublish(mqttClient7600, publishPayload, PUB_TOPIC, 1, 1);
 			if(res)
 			{
@@ -363,20 +448,86 @@ MQTT:
 				ESP_LOGE(TAG, "Publish FALSE");
 				goto MQTT;
 			}
-			vTaskDelay(1000/portTICK_PERIOD_MS);
+
+			//vTaskDelay(1000/portTICK_PERIOD_MS);
 		 }
 	}
 }
+void ota_proc(void * arg)
+{
+	bool res;
+	esp_task_wdt_init(600, false);
+    esp_task_wdt_add(NULL);
+    esp_task_wdt_status(NULL);
+    ESP_LOGI(TAG, "----------> START OTA <----------\r\n");
+    vTaskDelete(main_proc_handle);
+	POWER_ON:
+	ESP_LOGI(TAG, "----------> START PROGRAM <----------\r\n");
+	esp_task_wdt_reset();
+	gpio_set_level(nRST, 1);
+	vTaskDelay(100/portTICK_PERIOD_MS);
+	gpio_set_level(nRST, 0);
+	vTaskDelay(5000/portTICK_PERIOD_MS);
+	if(isInit(20)) ESP_LOGW(TAG, "Module Init OK");
+	else ESP_LOGE(TAG, "Module Init FALSE");
 
+	res = echoATSwtich(0, 3);
+	if(res) ESP_LOGW(TAG, "Turn off echo OK");
+	else ESP_LOGE(TAG, "Turn off echo FALSE");
+
+	res = switchGPS(1, 5);
+	if(res) ESP_LOGW(TAG, "Turn on GPS OK");
+	else
+	{
+		ESP_LOGE(TAG, "Turn on GPS FALSE");
+		goto POWER_ON;
+	}
+	res = networkType(LTE, 3);
+	if(res) ESP_LOGW(TAG, "Select network OK");
+	else
+	{
+		ESP_LOGE(TAG, "Select network FALSE");
+		goto POWER_ON;
+	}
+
+	res = isRegistered(40);
+	if(res) ESP_LOGW(TAG, "Module registed OK");
+	else
+	{
+		ESP_LOGE(TAG, "Module registed FALSE");
+		goto POWER_ON;
+	}
+
+	update_handler();
+	while(1);
+}
 void app_main(void)
 {
+    printf("Initialize TWDT\n");
+    esp_task_wdt_init(60, false);
+    esp_task_wdt_add(xTaskGetIdleTaskHandleForCPU(0));
 	esp_log_level_set("wifi", ESP_LOG_NONE);
 	esp_log_level_set("wifi_init", ESP_LOG_NONE);
+	mountSPIFFS();
+	smart_box_sem = xSemaphoreCreateBinary();
+	xSemaphoreGive(smart_box_sem);
+	char mac_saved[600];
+	readfromfile("macinfor", mac_saved);
+	JSON_analyze_MAC_update(mac_saved, &smartBox);
+	ESP_LOGW(TAG, "MAC infor PowerOn:");
+	for(int i = 0; i < smartBox.white_list_cnt; i++)
+	{
+		ESP_LOGW(TAG, "%02x:%02x:%02x:%02x:%02x:%02x\r\n", smartBox.ble_data[i].mac[0],\
+										smartBox.ble_data[i].mac[1],\
+										smartBox.ble_data[i].mac[2],\
+										smartBox.ble_data[i].mac[3],\
+										smartBox.ble_data[i].mac[4],\
+										smartBox.ble_data[i].mac[5]);
+	}
 	nvs_flash_init();
 	esp_netif_init();
 	esp_event_loop_create_default();
 	esp_netif_create_default_wifi_sta();
-
 
 	esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT); // Release the controller memory
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -388,11 +539,13 @@ void app_main(void)
 	esp_ble_gattc_register_callback(esp_gattc_cb); // Register the callback function to the GATTC module
 	esp_ble_gattc_app_register(PROFILE_A_APP_ID);  // Register application callbacks with GATTC module
 
-	sprintf(deviceInfor.Version, "%s", VERSION);
+	CMD_handle = xRingbufferCreate(1024, RINGBUF_TYPE_NOSPLIT);
+    if (CMD_handle == NULL) {
+    	printf("Failed to create CMD ring buffer\n");
+	}
 
-	deviceInfor.Bat_Level = 100;
 	init_gpio_output();
 	init_simcom(ECHO_UART_PORT_NUM_1, ECHO_TEST_TXD_1, ECHO_TEST_RXD_1, ECHO_UART_BAUD_RATE);
-	xTaskCreate(main_proc, "main", 4096*4, NULL, 10, NULL);
-
+	xTaskCreate(main_proc, "main", 4096*6, NULL, 10, &main_proc_handle);
+	xTaskCreate(cmd_proc, "cmd_proc", 4096*2, NULL, 10, NULL);
 }

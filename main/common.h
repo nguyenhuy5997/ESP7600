@@ -14,7 +14,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <math.h>
-
+#define VER "0.0.0"
 typedef struct gps_
 {
 	float lat;
@@ -56,6 +56,7 @@ typedef struct
 typedef struct _sensor_data
 {
     uint8_t mac[6];
+    uint8_t pos;
     uint8_t data[31];
     uint8_t data_len;
     uint32_t frame_cnt;
@@ -75,4 +76,5 @@ typedef struct _smartbox_data
 	uint8_t white_list_cnt;
 	sensor_data_t ble_data[22];
 } smartbox_data_t;
+
 #endif /* MAIN_COMMON_H_ */

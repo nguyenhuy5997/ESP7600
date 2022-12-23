@@ -20,5 +20,6 @@
 void getSubStrig(char *source, char *start, char *end, char *out);
 void parse_ble_msg(uint8_t data_byte[31], sensor_data_t * sensor_data);
 void conver_message_send(char* msg, smartbox_data_t smartbox_data);
-
+void conver_message_send_tb(char* publishPayload, smartbox_data_t smartBox);
+void JSON_analyze_MAC_update( char *  my_json_string, smartbox_data_t* smartbox);
 #endif /* MAIN_STRING_USER_STRING_PARSE_H_ */

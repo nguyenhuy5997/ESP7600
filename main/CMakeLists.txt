@@ -10,5 +10,6 @@ idf_component_register(SRCS "main.c"
 							"../main/OTA_LTE/FOTA_LTE.c"
 							"../main/string_user/string_parse.c"
 							"../main/ble/ble_scan.c"
+							"../main/SPIFFS/spiffs_user.c"
 							INCLUDE_DIRS ".")
 set(COMPONENT_ADD_INCLUDEDIRS "../7600lib")

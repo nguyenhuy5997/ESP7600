@@ -48,9 +48,9 @@ void uart_simcom(void *arg)
 			ESP_LOGI(TAG, "Rec: %s", (char*) data);
 			if(strstr((char*)data, "+CMQTTRXSTART"))
 			{
-				simcom_7600.mqtt_CB(data);
 				memcpy(simcom_7600.AT_buff, data, len);
 				simcom_7600.AT_buff_avai = true;
+				simcom_7600.mqtt_CB(data);
 			}
 			else
 			{
@@ -120,8 +120,9 @@ bool switchGPS(bool enable, int retry)
 {
 	AT_res res;
 	char buff[20];
+	int _retry = retry;
 	sprintf(buff, "AT+CGPS?");
-	while(retry--)
+	while(_retry--)
 	{
 		_sendAT(buff);
 		res = ___readSerial(1000, "OK");
@@ -129,8 +130,9 @@ bool switchGPS(bool enable, int retry)
 		else if(!enable && strstr((char*)simcom_7600.AT_buff, "+CGPS: 0")) return true;
 		if (res == AT_OK) break;
 	}
+	_retry = retry;
 	sprintf(buff, "AT+CGPS=%d", enable);
-	while(retry--)
+	while(_retry--)
 	{
 		_sendAT(buff);
 		if(enable)	res = ___readSerial(1000, "OK");

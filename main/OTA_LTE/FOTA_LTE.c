@@ -44,6 +44,7 @@ esp_err_t  update_handler(){
 	httpGet("http://202.191.56.104:5551/uploads/ESP7600.bin", &content_len);
     ESP_LOGI(TAG_OTA, "Image szie: %d", content_len);
 	uint16_t buf_len = 0;
+	esp_log_level_set("AT_CMD", ESP_LOG_NONE);
     while(httpReadRespond(buf, SEND_DATA, &buf_len)){
 
         ret = esp_ota_write(well_done_handle, buf, buf_len);

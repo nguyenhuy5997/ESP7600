@@ -17,3 +17,6 @@ int json_add_ap(cJSON *aps, const char * bssid, int rssi);
 int json_add_obj(cJSON *parent, const char *str, cJSON *item);
 int json_add_sensor_data(cJSON *aps, sensor_data_t sensor);
 void JSON_analyze_sub(char* my_json_string, long* Timestamp);
+void JSON_analyze_MAC_add( char *  my_json_string, smartbox_data_t* smartbox);
+void JSON_analyze_MAC_rmv( char *  my_json_string, smartbox_data_t* smartbox);
+void JSON_analyze_MAC_init( char *  my_json_string, smartbox_data_t* smartbox);
