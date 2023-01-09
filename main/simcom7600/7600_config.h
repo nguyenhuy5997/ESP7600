@@ -10,7 +10,7 @@
 
 #define ECHO_TEST_TXD_1 (17)
 #define ECHO_TEST_RXD_1 (16)
-#define ECHO_UART_PORT_NUM_1    (2)
+#define ECHO_UART_PORT_NUM_1    (1)
 #define ECHO_UART_BAUD_RATE     (115200)
 #define POWER_KEY (2)
 #define nRST (15)

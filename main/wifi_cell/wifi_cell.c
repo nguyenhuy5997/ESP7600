@@ -63,6 +63,7 @@ void wifi_scan(char* Wifi_Buffer)
 				{
 					Wifi_Buffer[i-1] = buffer[i];
 				}
+				Wifi_Buffer[strlen(buffer)-2] = 0;
 			}
 		}
 		else

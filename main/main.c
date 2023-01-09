@@ -31,12 +31,14 @@
 #include "cJSON.h"
 #include "../main/simcom7600/simcom7600.h"
 #include "../main/simcom7600/7600_config.h"
+#include "../main/OBD/OBD.h"
 #include "../main/common.h"
 #include "../main/string_user/location_parser.h"
 #include "../main/json_user/json_user.h"
 #include "../main/wifi_cell/wifi_cell.h"
 #include "../main/OTA_LTE/FOTA_LTE.h"
 #include "../main/SPIFFS/spiffs_user.h"
+#include "../main/utils/dis_cal.h"
 #define GATTC_TAG "BT"
 #define PROFILE_NUM 1
 #define PROFILE_A_APP_ID 0
@@ -46,9 +48,17 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 
-#define INNOWAY
+#define VTAG
 #define TAG_MAIN "SIMCOM"
 
+#ifdef	VTAG
+	#define CLIENT_ID 					"MAN02ND00017"
+	#define CLIENT_PW 					"z4r8A7CU6YEPrVuU115Q"
+	#define MQTT_BROKER 				"tcp://vttmqtt.innoway.vn:1883"
+	#define PUB_GPS_TOPIC 				"messages/MAN02ND00017/gps"
+	#define PUB_WIFI_TOPIC 				"messages/MAN02ND00017/wificell"
+	#define SUB_TOPIC 					"messages/MAN02ND00017/control"
+#endif
 #ifdef	INNOWAY
 	#define CLIENT_ID 			"MAN02ND09210"
 	#define CLIENT_PW 			"z4r8A7CU6YEPrVuU115Q"
@@ -80,6 +90,7 @@ TaskHandle_t ota_proc_handle;
 smartbox_data_t smartBox = {0};
 client mqttClient7600 = {};
 gps gps_7600;
+gps gps_7600_his;
 Network_Signal network7600 = {};
 Device_Infor deviceInfor = {};
 LBS LBS_location;
@@ -283,6 +294,10 @@ void cmd_proc(void *arg)
 		item = (char *)xRingbufferReceive(CMD_handle, &item_size, pdMS_TO_TICKS(1000));
 		if(item)
 		{
+			if(strstr(item, "T"))
+			{
+				JSON_analyze_sub(item, &deviceInfor.Timestamp);
+			}
 			if(strstr(item, "ADDWL"))
 			{
 				xSemaphoreTake(smart_box_sem, portMAX_DELAY);
@@ -329,7 +344,16 @@ void cmd_proc(void *arg)
 void main_proc(void *arg)
 {
 	bool res;
+	deviceInfor.Bat_Level = 100;
+	deviceInfor.Version[0] = '0';
+	deviceInfor.Version[1] = '.';
+	deviceInfor.Version[2] = '0';
+	deviceInfor.Version[3] = '.';
+	deviceInfor.Version[4] = '0';
+	deviceInfor.Version[5] = '\0';
+	char msg_publish[1000];
 	char publishPayload[1000];
+	char wifi_buffer[500];
     esp_task_wdt_add(NULL);
     esp_task_wdt_status(NULL);
 	while(1)
@@ -415,12 +439,17 @@ MQTT:
 				mqttDisconnect(mqttClient7600, 3);
 				update_handler();
 			}
+			networkInfor(3, &network7600);
 			memset(&gps_7600, 0, sizeof(gps_7600));
 			int GPS_scan_time = 1;
 			while (GPS_scan_time-- )
 			{
 				readGPS(&gps_7600);
-				if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3) break;
+				if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
+				{
+					vTaskDelay(500/portTICK_PERIOD_MS);
+					break;
+				}
 				vTaskDelay(1000/portTICK_PERIOD_MS);
 			}
 			if(gps_7600.GPSfixmode == 2 || gps_7600.GPSfixmode == 3)
@@ -430,15 +459,27 @@ MQTT:
 				smartBox.acc = gps_7600.acc;
 				smartBox.speed = gps_7600.speed;
 				smartBox.epoch = gps_7600.epoch;
+				double dis;
+				dis = distance(gps_7600_his.lat, gps_7600_his.lon, gps_7600.lat, gps_7600.lon, 'K');
+				printf("distance: %f", dis);
+				if (dis > 1 && gps_7600_his.lat != 0 && gps_7600_his.lon !=0)
+				{
+					gps_7600.acc = 1000;
+				}
+				MQTT_Location_Payload_Convert(msg_publish, gps_7600, network7600, deviceInfor);
+				res = mqttPublish(mqttClient7600, msg_publish, PUB_GPS_TOPIC, 1, 1);
+				gps_7600_his = gps_7600;
 			}
 			else
 			{
-
+				wifi_scan(wifi_buffer);
+				MQTT_WiFi_Payload_Convert(msg_publish, wifi_buffer, network7600, deviceInfor);
+				res = mqttPublish(mqttClient7600, msg_publish, PUB_WIFI_TOPIC, 1, 1);
 			}
-			xSemaphoreTake(smart_box_sem, portMAX_DELAY);
-			conver_message_send(publishPayload, smartBox);
-		    xSemaphoreGive(smart_box_sem);
-			res = mqttPublish(mqttClient7600, publishPayload, PUB_TOPIC, 1, 1);
+//			xSemaphoreTake(smart_box_sem, portMAX_DELAY);
+//			conver_message_send(publishPayload, smartBox);
+//		    xSemaphoreGive(smart_box_sem);
+//			res = mqttPublish(mqttClient7600, publishPayload, PUB_TOPIC, 1, 1);
 			if(res)
 			{
 				ESP_LOGW(TAG, "Publish OK");
@@ -451,6 +492,23 @@ MQTT:
 
 			//vTaskDelay(1000/portTICK_PERIOD_MS);
 		 }
+	}
+}
+void obd_proc(void * arg)
+{
+	float speed;
+	bool res;
+	while(1)
+	{
+		res = OBD_getSpeed(&speed);
+		if(res)
+		{
+			ESP_LOGI("OBD", "Speed: %f", speed);
+		}
+		else
+		{
+			ESP_LOGE("OBD", "Read OBD speed false");
+		}
 	}
 }
 void ota_proc(void * arg)
@@ -529,15 +587,15 @@ void app_main(void)
 	esp_event_loop_create_default();
 	esp_netif_create_default_wifi_sta();
 
-	esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT); // Release the controller memory
-	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-	esp_bt_controller_init(&bt_cfg);
-	esp_bt_controller_enable(ESP_BT_MODE_BLE);
-	esp_bluedroid_init();                          // Initialize BT controller to allocate task
-	esp_bluedroid_enable();                        // Enable bluetooth
-	esp_ble_gap_register_callback(esp_gap_cb);     // Register the callback function to the GAP module
-	esp_ble_gattc_register_callback(esp_gattc_cb); // Register the callback function to the GATTC module
-	esp_ble_gattc_app_register(PROFILE_A_APP_ID);  // Register application callbacks with GATTC module
+//	esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT); // Release the controller memory
+//	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+//	esp_bt_controller_init(&bt_cfg);
+//	esp_bt_controller_enable(ESP_BT_MODE_BLE);
+//	esp_bluedroid_init();                          // Initialize BT controller to allocate task
+//	esp_bluedroid_enable();                        // Enable bluetooth
+//	esp_ble_gap_register_callback(esp_gap_cb);     // Register the callback function to the GAP module
+//	esp_ble_gattc_register_callback(esp_gattc_cb); // Register the callback function to the GATTC module
+//	esp_ble_gattc_app_register(PROFILE_A_APP_ID);  // Register application callbacks with GATTC module
 
 	CMD_handle = xRingbufferCreate(1024, RINGBUF_TYPE_NOSPLIT);
     if (CMD_handle == NULL) {
@@ -546,6 +604,8 @@ void app_main(void)
 
 	init_gpio_output();
 	init_simcom(ECHO_UART_PORT_NUM_1, ECHO_TEST_TXD_1, ECHO_TEST_RXD_1, ECHO_UART_BAUD_RATE);
-	xTaskCreate(main_proc, "main", 4096*6, NULL, 10, &main_proc_handle);
+	init_OBD(ECHO_UART_PORT_NUM_2, ECHO_TEST_TXD_2, ECHO_TEST_RXD_2, ECHO_UART_BAUD_RATE);
+//	xTaskCreate(main_proc, "main", 4096*6, NULL, 10, &main_proc_handle);
+	xTaskCreate(obd_proc, "obd_proc", 4096*2, NULL, 10, NULL);
 	xTaskCreate(cmd_proc, "cmd_proc", 4096*2, NULL, 10, NULL);
 }

@@ -11,5 +11,7 @@ idf_component_register(SRCS "main.c"
 							"../main/string_user/string_parse.c"
 							"../main/ble/ble_scan.c"
 							"../main/SPIFFS/spiffs_user.c"
+							"../main/utils/dis_cal.c"
+							"../main/OBD/OBD.c"
 							INCLUDE_DIRS ".")
 set(COMPONENT_ADD_INCLUDEDIRS "../7600lib")
