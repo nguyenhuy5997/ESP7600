@@ -25,13 +25,14 @@
 #define ECHO_TEST_TXD_2 (10)
 #define ECHO_TEST_RXD_2 (9)
 #define ECHO_UART_PORT_NUM_2    (2)
-#define ECHO_UART_BAUD_RATE     (9600)
+#define ECHO_UART_BAUD_RATE_OBD     (9600)
 
 #define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)
 #define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)
 #define ECHO_TASK_STACK_SIZE    (2048)
 #define BUF_SIZE (2048)
 
+#define TAG_OBD "AT_OBD"
 typedef struct obd_t
 {
 	uart_port_t uart_num;

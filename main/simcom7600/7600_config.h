@@ -16,6 +16,6 @@
 #define nRST (15)
 #define GPIO_OUTPUT_PIN_SEL (1ULL << nRST | 1ULL << nRST)
 
-#define TAG "AT_CMD"
+#define TAG "AT_SIMCOM"
 
 #endif /* SIMCOM7600_7600_CONFIG_H_ */

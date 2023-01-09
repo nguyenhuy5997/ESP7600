@@ -5669,6 +5669,16 @@
 			<location>C:/Users/nguyenphuonglinh/.espressif/frameworks/esp-idf-v4.4/components/bt/host/bluedroid/btc/profile/std/hid/btc_hh.c</location>
 		</link>
 		<link>
+			<name>esp_idf_components/bt/host/bluedroid/btc/profile/std/hid/hidh_api.c</name>
+			<type>1</type>
+			<location>C:/Espressif/frameworks/esp-idf-v4-dirty/esp-idf/components/bt/host/bluedroid/btc/profile/std/hid/hidh_api.c</location>
+		</link>
+		<link>
+			<name>esp_idf_components/bt/host/bluedroid/btc/profile/std/hid/hidh_conn.c</name>
+			<type>1</type>
+			<location>C:/Espressif/frameworks/esp-idf-v4-dirty/esp-idf/components/bt/host/bluedroid/btc/profile/std/hid/hidh_conn.c</location>
+		</link>
+		<link>
 			<name>esp_idf_components/bt/host/bluedroid/btc/profile/std/spp/btc_spp.c</name>
 			<type>1</type>
 			<location>C:/Users/nguyenphuonglinh/.espressif/frameworks/esp-idf-v4.4/components/bt/host/bluedroid/btc/profile/std/spp/btc_spp.c</location>

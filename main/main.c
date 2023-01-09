@@ -604,8 +604,8 @@ void app_main(void)
 
 	init_gpio_output();
 	init_simcom(ECHO_UART_PORT_NUM_1, ECHO_TEST_TXD_1, ECHO_TEST_RXD_1, ECHO_UART_BAUD_RATE);
-	init_OBD(ECHO_UART_PORT_NUM_2, ECHO_TEST_TXD_2, ECHO_TEST_RXD_2, ECHO_UART_BAUD_RATE);
-//	xTaskCreate(main_proc, "main", 4096*6, NULL, 10, &main_proc_handle);
+	init_OBD(ECHO_UART_PORT_NUM_2, ECHO_TEST_TXD_2, ECHO_TEST_RXD_2, ECHO_UART_BAUD_RATE_OBD);
+	//xTaskCreate(main_proc, "main", 4096*6, NULL, 10, &main_proc_handle);
 	xTaskCreate(obd_proc, "obd_proc", 4096*2, NULL, 10, NULL);
 	xTaskCreate(cmd_proc, "cmd_proc", 4096*2, NULL, 10, NULL);
 }

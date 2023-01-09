@@ -45,7 +45,7 @@ void uart_simcom(void *arg)
 		// Write data back to the UART
 		if (len) {
 			data[len] = '\0';
-			ESP_LOGI(TAG, "Rec: %s", (char*) data);
+			ESP_LOGI(TAG, "Rec_Simcom: %s", (char*) data);
 			if(strstr((char*)data, "+CMQTTRXSTART"))
 			{
 				memcpy(simcom_7600.AT_buff, data, len);

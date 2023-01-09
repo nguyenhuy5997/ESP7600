@@ -36,11 +36,11 @@ void uart_OBD(void *arg)
 {
 	uint8_t data[BUF_SIZE];
 	while (1) {
-		int len = uart_read_bytes(obd.uart_num, data, (BUF_SIZE - 1), 100 / portTICK_PERIOD_MS);
+		int len = uart_read_bytes(obd.uart_num, data, (BUF_SIZE - 1), 1000 / portTICK_PERIOD_MS);
 		// Write data back to the UART
 		if (len) {
 			data[len] = '\0';
-			ESP_LOGI(TAG, "Rec: %s", (char*) data);
+			ESP_LOGI(TAG_OBD, "Rec_OBD: %s", (char*) data);
 			memcpy(obd.AT_buff, data, len);
 			obd.AT_buff_avai = true;
 		}
@@ -49,7 +49,7 @@ void uart_OBD(void *arg)
 }
 void _sendAT_OBD(char *AT_command)
 {
-	ESP_LOGI(TAG, "Send: %s", AT_command);
+	ESP_LOGI(TAG_OBD, "Send: %s", AT_command);
 	obd.AT_buff_avai = false;
 	memset(obd.AT_buff, 0, BUF_SIZE);
 	uart_write_bytes(obd.uart_num, (const char *) AT_command, strlen((char *)AT_command));
@@ -88,7 +88,7 @@ bool OBD_getSpeed(float * speed)
 	while (retry--)
 	{
 		_sendAT_OBD("ATRON");
-		res = ___readSerial_OBD(1000, "$OBD-RT");
+		res = ___readSerial_OBD(1500, "$OBD-RT");
 		if (res == AT_OK)
 		{
 			char sub_str[300];

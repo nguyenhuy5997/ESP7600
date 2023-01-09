@@ -55,10 +55,7 @@ void wifi_scan(char* Wifi_Buffer)
 			}
 			else
 			{
-				ESP_LOGE(TAG, "Print wifi buffer \r\n");
 				ESP_LOGW(TAG,"%s",buffer);
-				ESP_LOGE(TAG, "Allocate memory for wifi buffer \r\n");
-				ESP_LOGE(TAG, "Copy wifi buffer \r\n");
 				for(int i = 1; i < strlen(buffer) - 1; i++)
 				{
 					Wifi_Buffer[i-1] = buffer[i];
